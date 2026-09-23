@@ -1,0 +1,1235 @@
+"""
+================================================================================
+MINESHIELD - SMARTSURFACE-MESH: ALL-IN-ONE SINGLE PYTHON FILE
+SIH 2026 Problem Statement ID: SIH26025
+Theme: Smart Automation | Category: Hardware | Team: Team MineShield
+================================================================================
+This single file contains the ENTIRE system:
+- Built-in Zero-Dependency Multi-Threaded Python HTTP Server
+- Embedded Complete Web Dashboard UI (GIS Canvas, Charts, Audio Siren, Alerts)
+- Python AI/ML Spatiotemporal Subsidence & Fukuzono TTF Prediction Engine
+- Python LoRa Multi-Hop Mesh Network State Manager & Self-Healing Router
+- Full REST API Endpoints (/api/status, /api/nodes, /api/telemetry, /api/ai/predict, etc.)
+- Automatic Background Sensor Jitter Simulation & Browser Launcher
+
+TO RUN:
+    python mineshield_all_in_one.py
+
+THEN OPEN IN BROWSER:
+    http://localhost:8000
+================================================================================
+"""
+
+import copy
+import csv
+import io
+import json
+import random
+import sys
+import threading
+import time
+import webbrowser
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+from urllib.parse import urlparse
+
+# ------------------------------------------------------------------------------
+# 1. LORA MESH STATE & GEOTECHNICAL NODE DATABASE
+# ------------------------------------------------------------------------------
+INITIAL_NODES = [
+    {"id": "SN-01-A", "name": "Node 01 (Depillaring)", "zone": "Zone A", "xRel": 0.28, "yRel": 0.32, "tilt": 0.24, "disp": 0.5, "vib": 0.02, "crack": 0.0, "battery": 98, "rssi": -72, "status": "NORMAL", "isGateway": False},
+    {"id": "SN-02-A", "name": "Node 02 (Face 1)", "zone": "Zone A", "xRel": 0.38, "yRel": 0.42, "tilt": 0.28, "disp": 0.6, "vib": 0.03, "crack": 0.0, "battery": 96, "rssi": -75, "status": "NORMAL", "isGateway": False},
+    {"id": "GW-01", "name": "Gateway GW-01", "zone": "Zone B", "xRel": 0.50, "yRel": 0.55, "tilt": 0.00, "disp": 0.0, "vib": 0.00, "crack": 0.0, "battery": 100, "rssi": -50, "status": "GATEWAY", "isGateway": True},
+    {"id": "SN-03-B", "name": "Node 03 (Central)", "zone": "Zone B", "xRel": 0.50, "yRel": 0.30, "tilt": 0.15, "disp": 0.3, "vib": 0.01, "crack": 0.0, "battery": 94, "rssi": -68, "status": "NORMAL", "isGateway": False},
+    {"id": "SN-04-B", "name": "Node 04 (North-East)", "zone": "Zone B", "xRel": 0.62, "yRel": 0.40, "tilt": 0.18, "disp": 0.4, "vib": 0.01, "crack": 0.0, "battery": 97, "rssi": -71, "status": "NORMAL", "isGateway": False},
+    {"id": "SN-05-C", "name": "Node 05 (South-West)", "zone": "Zone C", "xRel": 0.33, "yRel": 0.78, "tilt": 0.12, "disp": 0.2, "vib": 0.01, "crack": 0.0, "battery": 92, "rssi": -82, "status": "NORMAL", "isGateway": False},
+    {"id": "SN-06-C", "name": "Node 06 (West Panel)", "zone": "Zone C", "xRel": 0.44, "yRel": 0.85, "tilt": 0.14, "disp": 0.3, "vib": 0.01, "crack": 0.0, "battery": 95, "rssi": -78, "status": "NORMAL", "isGateway": False},
+    {"id": "SN-07-D", "name": "Node 07 (East Panel)", "zone": "Zone D", "xRel": 0.58, "yRel": 0.84, "tilt": 0.10, "disp": 0.2, "vib": 0.01, "crack": 0.0, "battery": 99, "rssi": -76, "status": "NORMAL", "isGateway": False},
+    {"id": "SN-08-D", "name": "Node 08 (South-East)", "zone": "Zone D", "xRel": 0.68, "yRel": 0.68, "tilt": 0.11, "disp": 0.2, "vib": 0.01, "crack": 0.0, "battery": 91, "rssi": -80, "status": "NORMAL", "isGateway": False}
+]
+
+class MineShieldState:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.nodes = {n["id"]: copy.deepcopy(n) for n in INITIAL_NODES}
+        self.risk_level = "NORMAL"
+        self.active_node_failure = False
+        self.failed_node_id = None
+        self.event_logs = [
+            f"[{time.strftime('%H:%M:%S')}] Python All-In-One Gateway GW-01 online (8/8 LoRa nodes connected).",
+            f"[{time.strftime('%H:%M:%S')}] Korba Coalfield Seam 4 Boundary Active: 22°41'12\" N, 82°35'44\" E."
+        ]
+
+    def log(self, msg: str):
+        t = time.strftime("%H:%M:%S")
+        self.event_logs.insert(0, f"[{t}] {msg}")
+        if len(self.event_logs) > 150:
+            self.event_logs.pop()
+
+    def set_risk(self, level: str):
+        with self.lock:
+            level = level.upper()
+            if level not in ["NORMAL", "WATCH", "HIGH", "CRITICAL"]:
+                level = "NORMAL"
+            self.risk_level = level
+
+            for nid, n in self.nodes.items():
+                if n.get("isGateway"): continue
+                if level == "NORMAL":
+                    n["tilt"] = round(random.uniform(0.12, 0.35), 2)
+                    n["disp"] = round(random.uniform(0.20, 0.65), 2)
+                    n["vib"] = round(random.uniform(0.01, 0.03), 2)
+                    n["crack"] = 0.0
+                    n["status"] = "NORMAL"
+                elif level == "WATCH":
+                    if n["zone"] == "Zone A":
+                        n["tilt"] = round(random.uniform(2.10, 3.40), 2)
+                        n["disp"] = round(random.uniform(3.20, 4.80), 2)
+                        n["vib"] = round(random.uniform(0.12, 0.22), 2)
+                        n["crack"] = 0.4
+                        n["status"] = "WATCH"
+                    else:
+                        n["tilt"] = round(random.uniform(0.30, 0.70), 2)
+                        n["disp"] = round(random.uniform(0.70, 1.20), 2)
+                        n["status"] = "NORMAL"
+                elif level == "HIGH":
+                    if n["zone"] == "Zone A":
+                        n["tilt"] = round(random.uniform(6.50, 8.80), 2)
+                        n["disp"] = round(random.uniform(8.50, 11.50), 2)
+                        n["vib"] = round(random.uniform(0.40, 0.65), 2)
+                        n["crack"] = 1.8
+                        n["status"] = "HIGH"
+                    elif n["zone"] == "Zone B":
+                        n["tilt"] = round(random.uniform(2.20, 3.10), 2)
+                        n["disp"] = round(random.uniform(2.80, 3.90), 2)
+                        n["status"] = "WATCH"
+                    else:
+                        n["tilt"] = round(random.uniform(0.60, 1.10), 2)
+                        n["status"] = "NORMAL"
+                elif level == "CRITICAL":
+                    if n["zone"] == "Zone A":
+                        n["tilt"] = round(random.uniform(13.80, 16.50), 2)
+                        n["disp"] = round(random.uniform(22.00, 28.50), 2)
+                        n["vib"] = round(random.uniform(1.20, 1.75), 2)
+                        n["crack"] = 6.4
+                        n["status"] = "CRITICAL"
+                    else:
+                        n["tilt"] = round(random.uniform(5.50, 7.80), 2)
+                        n["disp"] = round(random.uniform(8.00, 12.00), 2)
+                        n["vib"] = round(random.uniform(0.35, 0.50), 2)
+                        n["crack"] = 1.5
+                        n["status"] = "HIGH"
+
+            self.log(f"Global Risk transitioned to {level}. Sensor models updated.")
+
+    def update_telemetry(self, node_id: str, data: dict):
+        with self.lock:
+            if node_id not in self.nodes:
+                self.nodes[node_id] = {"id": node_id, "name": f"Node {node_id}", "zone": data.get("zone", "Zone A"), "isGateway": False}
+            n = self.nodes[node_id]
+            if "tilt" in data: n["tilt"] = round(float(data["tilt"]), 2)
+            if "disp" in data: n["disp"] = round(float(data["disp"]), 2)
+            if "vib" in data: n["vib"] = round(float(data["vib"]), 2)
+            if "crack" in data: n["crack"] = round(float(data["crack"]), 2)
+            if "battery" in data: n["battery"] = int(data["battery"])
+            if "rssi" in data: n["rssi"] = int(data["rssi"])
+            if "status" in data: n["status"] = str(data["status"]).upper()
+            self.log(f"Telemetry Rx from {node_id}: Tilt={n.get('tilt')}° Disp={n.get('disp')}mm")
+            return copy.deepcopy(n)
+
+    def toggle_failover(self, target="SN-02-A"):
+        with self.lock:
+            self.active_node_failure = not self.active_node_failure
+            if self.active_node_failure:
+                self.failed_node_id = target
+                if target in self.nodes:
+                    self.nodes[target]["status"] = "OFFLINE"
+                self.log(f"[SELF-HEALING] Node {target} OFFLINE. Dynamic LoRa reroute: SN-01-A -> SN-04-B -> GW-01.")
+                health = "87.5% (Self-Healed via Secondary Hop)"
+            else:
+                if self.failed_node_id in self.nodes:
+                    self.nodes[self.failed_node_id]["status"] = "NORMAL"
+                self.log(f"[RECOVERY] Node {self.failed_node_id} reconnected to mesh.")
+                self.failed_node_id = None
+                health = "99.4% (Optimal Multi-Hop)"
+            return {"active_node_failure": self.active_node_failure, "failed_node_id": self.failed_node_id, "mesh_health": health}
+
+    def jitter(self):
+        with self.lock:
+            if self.risk_level == "CRITICAL": return
+            candidates = [nid for nid in self.nodes.keys() if nid != "GW-01" and nid != self.failed_node_id]
+            if candidates:
+                nid = random.choice(candidates)
+                n = self.nodes[nid]
+                n["tilt"] = max(0.05, round(n["tilt"] + random.uniform(-0.02, 0.02), 2))
+                n["disp"] = max(0.10, round(n["disp"] + random.uniform(-0.03, 0.03), 2))
+
+    def get_csv(self) -> str:
+        with self.lock:
+            out = io.StringIO()
+            w = csv.writer(out)
+            w.writerow(["Node_ID", "Zone", "Tilt_Deg", "Displacement_mm", "Vibration_g", "Crack_Gauge_mm", "Battery_Pct", "RSSI_dBm", "Status"])
+            for n in self.nodes.values():
+                w.writerow([n.get("id"), n.get("zone"), n.get("tilt", 0.0), n.get("disp", 0.0), n.get("vib", 0.0), n.get("crack", 0.0), n.get("battery", 100), n.get("rssi", -70), n.get("status", "NORMAL")])
+            return out.getvalue()
+
+state = MineShieldState()
+
+# ------------------------------------------------------------------------------
+# 2. PYTHON AI/ML SPATIOTEMPORAL SUBSIDENCE PREDICTION ENGINE
+# ------------------------------------------------------------------------------
+def compute_ai_prediction():
+    with state.lock:
+        sensor_nodes = [n for n in state.nodes.values() if not n.get("isGateway")]
+        max_tilt = max((float(n.get("tilt", 0.0)) for n in sensor_nodes), default=0.0)
+        max_disp = max((float(n.get("disp", 0.0)) for n in sensor_nodes), default=0.0)
+        max_vib = max((float(n.get("vib", 0.0)) for n in sensor_nodes), default=0.0)
+        max_crack = max((float(n.get("crack", 0.0)) for n in sensor_nodes), default=0.0)
+
+        base_rate = max_tilt * 0.45
+        if max_tilt > 10.0: base_rate *= 2.8
+        elif max_tilt > 4.0: base_rate *= 1.6
+        velocity = round(max(0.04, base_rate), 2)
+
+        if state.risk_level == "CRITICAL" or max_tilt >= 10.0:
+            ttf = {"ttf_formatted": "< 30 Minutes (IMMINENT FAILURE)", "ttf_hours": 0.5, "urgency": "EMERGENCY", "color": "#dc2626", "action": "Evacuate Zone A & shafts immediately!"}
+            dgms = {"status": "NON-COMPLIANT (CRITICAL DANGER)", "level": 4, "color": "#dc2626", "protocol": "DGMS Circular 04/2020: Immediate Surface & Underground Evacuation."}
+        elif state.risk_level == "HIGH" or max_tilt >= 4.0:
+            eta = max(1.5, round(24.0 / max(velocity, 1.0), 1))
+            ttf = {"ttf_formatted": f"~ {eta} Hours (RAPID MOVEMENTS)", "ttf_hours": eta, "urgency": "HIGH", "color": "#ea580c", "action": "Halt underground shearer. Evacuate face."}
+            dgms = {"status": "NON-COMPLIANT (HIGH HAZARD)", "level": 3, "color": "#ea580c", "protocol": "DGMS Level 3: Halt face machinery."}
+        elif state.risk_level == "WATCH" or max_tilt >= 1.0:
+            eta = max(24.0, round(72.0 / max(velocity, 0.5), 1))
+            ttf = {"ttf_formatted": f"~ {eta} Hours (SLOW TILT CREEP)", "ttf_hours": eta, "urgency": "MODERATE", "color": "#d97706", "action": "Increase mesh sampling to 1s. Inspect strata."}
+            dgms = {"status": "MONITORED (WATCH STAGE)", "level": 2, "color": "#d97706", "protocol": "DGMS Level 2: Accelerated LoRa sensing."}
+        else:
+            ttf = {"ttf_formatted": "> 72 Hours (GROUND STABLE)", "ttf_hours": 999.0, "urgency": "NORMAL", "color": "#059669", "action": "Continuous baseline monitoring."}
+            dgms = {"status": "FULLY COMPLIANT (SAFE)", "level": 1, "color": "#047857", "protocol": "DGMS Level 1: Standard operation."}
+
+        norm_tilt = min(100.0, (max_tilt / 15.0) * 100.0)
+        norm_disp = min(100.0, (max_disp / 25.0) * 100.0)
+        fusion_score = round((norm_tilt * 0.40) + (norm_disp * 0.35) + (min(100.0, max_vib * 70.0) * 0.15) + (min(100.0, max_crack * 15.0) * 0.10), 1)
+
+        matrix = []
+        for n in sensor_nodes:
+            matrix.append({
+                "id": n["id"], "zone": n["zone"], "tilt": n["tilt"], "disp": n["disp"], "status": n["status"],
+                "bg_color": "#fee2e2" if n["status"] == "CRITICAL" else "#ffedd5" if n["status"] == "HIGH" else "#fef3c7" if n["status"] == "WATCH" else "#f8fafc",
+                "text_color": "#dc2626" if n["status"] in ["CRITICAL", "HIGH"] else "#059669"
+            })
+
+        return {
+            "risk_level": state.risk_level,
+            "max_tilt": max_tilt,
+            "max_disp": max_disp,
+            "subsidence_velocity_mm_per_hour": velocity,
+            "time_to_failure": ttf,
+            "dgms_compliance": dgms,
+            "fusion_score": fusion_score,
+            "spatiotemporal_matrix": matrix,
+            "mesh_health": "87.5% (Self-Healed)" if state.active_node_failure else "99.4% (Optimal)"
+        }
+
+# ------------------------------------------------------------------------------
+# 3. EMBEDDED COMPLETE WEB DASHBOARD (HTML, CSS & JAVASCRIPT)
+# ------------------------------------------------------------------------------
+HTML_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MineShield - SMARTSURFACE-MESH | SIH 2026</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-main: #f4f7fb; --bg-card: #ffffff; --bg-sidebar: #0f172a;
+      --text-main: #1e293b; --text-muted: #64748b;
+      --primary: #2563eb; --primary-hover: #1d4ed8; --primary-light: #eff6ff; --primary-border: #bfdbfe;
+      --level-normal: #10b981; --level-watch: #f59e0b; --level-high: #f97316; --level-critical: #ef4444;
+      --border-color: #e2e8f0; --radius: 12px;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
+    .sih-banner { background: linear-gradient(90deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%); color: #ffffff; padding: 8px 24px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; }
+    .sih-badge { background: #f59e0b; color: #0f172a; font-weight: 800; padding: 2px 8px; border-radius: 4px; margin-right: 8px; font-size: 0.75rem; }
+    .team-badge { background: rgba(255,255,255,0.15); padding: 3px 12px; border-radius: 20px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .app-header { background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+    .header-title-container { display: flex; align-items: center; gap: 14px; }
+    .logo-icon { width: 44px; height: 44px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.4rem; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3); }
+    .header-text h1 { font-size: 1.35rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 10px; }
+    .header-text p { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; }
+    .ws-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .warning-control-bar { display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 12px; border-radius: 12px; border: 1px solid var(--border-color); }
+    .warning-bar-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-right: 4px; }
+    .btn-level { border: none; padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 0.82rem; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px; color: white; opacity: 0.65; }
+    .btn-level:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-level.active { opacity: 1; transform: scale(1.04); box-shadow: 0 0 12px rgba(0,0,0,0.15); outline: 2px solid white; }
+    .btn-level-normal { background-color: var(--level-normal); }
+    .btn-level-watch { background-color: var(--level-watch); }
+    .btn-level-high { background-color: var(--level-high); }
+    .btn-level-critical { background-color: var(--level-critical); animation: pulseAlert 1.5s infinite; }
+    @keyframes pulseAlert { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+    .critical-alarm-banner { background: linear-gradient(90deg, #dc2626, #b91c1c, #dc2626); color: white; padding: 12px 24px; display: none; justify-content: space-between; align-items: center; font-weight: 800; font-size: 0.92rem; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4); z-index: 99; }
+    .critical-alarm-banner.active { display: flex; }
+    .btn-mute-alarm { background: white; color: #dc2626; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 800; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; }
+    .nav-tabs { display: flex; gap: 6px; padding: 10px 24px; background: #ffffff; border-bottom: 1px solid var(--border-color); overflow-x: auto; }
+    .tab-btn { background: transparent; border: 1px solid transparent; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; white-space: nowrap; }
+    .tab-btn:hover { background: var(--primary-light); color: var(--primary); }
+    .tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25); }
+    .main-container { padding: 20px 24px; flex: 1; display: flex; flex-direction: column; gap: 20px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: flex; flex-direction: column; gap: 20px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .stat-card { background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius); border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s ease; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.07); }
+    .stat-info h4 { font-size: 0.76rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+    .stat-info .stat-value { font-size: 1.45rem; font-weight: 800; color: #0f172a; margin: 4px 0; }
+    .stat-info .stat-sub { font-size: 0.74rem; color: var(--text-muted); }
+    .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+    .icon-blue { background: #dbeafe; color: #2563eb; }
+    .icon-green { background: #d1fae5; color: #059669; }
+    .icon-orange { background: #ffedd5; color: #ea580c; }
+    .icon-purple { background: #f3e8ff; color: #9333ea; }
+    .gis-section { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; min-height: 540px; }
+    @media (max-width: 1024px) { .gis-section { grid-template-columns: 1fr; } }
+    .map-card { background: #090d16; border-radius: var(--radius); border: 1px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.07); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+    .map-header { background: rgba(15, 23, 42, 0.95); padding: 12px 18px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+    .map-title { color: #38bdf8; font-family: monospace; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .map-controls { display: flex; gap: 8px; }
+    .map-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: monospace; }
+    .map-btn:hover, .map-btn.active { background: #2563eb; color: white; border-color: #3b82f6; }
+    .map-viewport { position: relative; flex: 1; min-height: 480px; cursor: crosshair; }
+    #meshCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .map-hud-topleft { position: absolute; top: 12px; left: 12px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; color: #e2e8f0; font-family: monospace; font-size: 0.74rem; pointer-events: none; z-index: 5; }
+    .map-hud-legend { position: absolute; bottom: 12px; right: 12px; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); border: 1px solid #334155; border-radius: 6px; padding: 10px 14px; color: #94a3b8; font-size: 0.74rem; z-index: 5; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .legend-color { width: 10px; height: 10px; border-radius: 50%; }
+    .line-legend { width: 18px; height: 2px; border-top: 2px dashed #38bdf8; }
+    .side-panel { display: flex; flex-direction: column; gap: 16px; }
+    .panel-card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border-color); padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
+    .panel-header h3 { font-size: 0.95rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+    .node-list-mini { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
+    .node-item { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s ease; }
+    .node-item:hover { background: var(--primary-light); border-color: var(--primary-border); }
+    .node-tag { font-weight: 700; font-size: 0.85rem; color: #0f172a; font-family: monospace; }
+    .node-zone { font-size: 0.72rem; color: var(--text-muted); }
+    .node-metrics { text-align: right; font-size: 0.75rem; font-family: monospace; }
+    .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+    .badge-normal { background: #d1fae5; color: #047857; }
+    .badge-watch { background: #fef3c7; color: #b45309; }
+    .badge-high { background: #ffedd5; color: #c2410c; }
+    .badge-critical { background: #fee2e2; color: #b91c1c; }
+    .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .analytics-grid { grid-template-columns: 1fr; } }
+    .chart-container { position: relative; height: 260px; width: 100%; }
+    .spatiotemporal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .grid-cell { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; text-align: center; font-family: monospace; font-size: 0.78rem; transition: all 0.3s ease; }
+    .grid-cell .cell-val { font-size: 1.1rem; font-weight: 800; margin-top: 4px; }
+    .alert-feed { display: flex; flex-direction: column; gap: 10px; max-height: 350px; overflow-y: auto; }
+    .alert-item { border-left: 4px solid var(--primary); background: #f8fafc; padding: 12px 16px; border-radius: 0 8px 8px 0; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .alert-item.normal { border-color: var(--level-normal); }
+    .alert-item.watch { border-color: var(--level-watch); }
+    .alert-item.high { border-color: var(--level-high); }
+    .alert-item.critical { border-color: var(--level-critical); background: #fef2f2; }
+    .alert-title { font-weight: 700; font-size: 0.88rem; color: #0f172a; }
+    .alert-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+    .alert-time { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; }
+    .tech-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+    .tech-table th, .tech-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .tech-table th { background: #f8fafc; color: var(--text-muted); font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
+    .btn-action { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease; }
+    .btn-action:hover { background: var(--primary-hover); }
+    .btn-outline { background: transparent; color: var(--text-main); border: 1px solid var(--border-color); }
+    .btn-outline:hover { background: #f1f5f9; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: white; border-radius: var(--radius); width: 90%; max-width: 550px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); position: relative; max-height: 85vh; overflow-y: auto; }
+    .modal-close { position: absolute; top: 16px; right: 16px; border: none; background: #f1f5f9; width: 28px; height: 28px; border-radius: 50%; font-weight: 700; cursor: pointer; }
+    footer { background: var(--bg-card); border-top: 1px solid var(--border-color); padding: 16px 24px; text-align: center; font-size: 0.8rem; color: var(--text-muted); margin-top: auto; }
+  </style>
+</head>
+<body>
+  <div class="sih-banner">
+    <div>
+      <span class="sih-badge">SIH 2026</span>
+      <strong>Problem Statement ID: SIH26025</strong> | Theme: Smart Automation | Category: Hardware
+    </div>
+    <div>
+      <span class="team-badge"><i class="fa-solid fa-shield-halved"></i> Team MineShield</span>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <div class="header-title-container">
+      <div class="logo-icon"><i class="fa-solid fa-network-wired"></i></div>
+      <div class="header-text">
+        <h1>SMARTSURFACE-MESH <span class="ws-badge"><i class="fa-solid fa-circle-check"></i> Python Server Live</span></h1>
+        <p>Real-Time Mine Subsidence Detection & Early Warning System</p>
+      </div>
+    </div>
+    <div class="warning-control-bar">
+      <span class="warning-bar-label"><i class="fa-solid fa-triangle-exclamation"></i> Risk Level:</span>
+      <button class="btn-level btn-level-normal active" id="btnNormal" onclick="setRiskLevel('NORMAL')"><i class="fa-solid fa-circle-check"></i> NORMAL</button>
+      <button class="btn-level btn-level-watch" id="btnWatch" onclick="setRiskLevel('WATCH')"><i class="fa-solid fa-eye"></i> WATCH</button>
+      <button class="btn-level btn-level-high" id="btnHigh" onclick="setRiskLevel('HIGH')"><i class="fa-solid fa-triangle-exclamation"></i> HIGH</button>
+      <button class="btn-level btn-level-critical" id="btnCritical" onclick="setRiskLevel('CRITICAL')"><i class="fa-solid fa-bell"></i> CRITICAL</button>
+    </div>
+  </header>
+
+  <div class="critical-alarm-banner" id="alarmBanner">
+    <div>
+      <i class="fa-solid fa-triangle-exclamation fa-beat"></i> <strong>CRITICAL MINE SUBSIDENCE EMERGENCY ALARM ACTIVATED!</strong>
+      <span style="margin-left: 12px; font-weight: normal; font-size: 0.85rem;">[AUDIO SIREN RINGING... EVACUATE ZONE A & SHAFTS IMMEDIATELY]</span>
+    </div>
+    <button class="btn-mute-alarm" onclick="stopSirenAlert()"><i class="fa-solid fa-volume-xmark"></i> MUTE ALARM SIREN</button>
+  </div>
+
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('gisMap', this)"><i class="fa-solid fa-map-location-dot"></i> GIS Surface Mesh Map</button>
+    <button class="tab-btn" onclick="switchTab('aiEngine', this)"><i class="fa-solid fa-brain"></i> AI/ML Spatiotemporal Engine</button>
+    <button class="tab-btn" onclick="switchTab('meshTopology', this)"><i class="fa-solid fa-diagram-project"></i> LoRa Mesh Network</button>
+    <button class="tab-btn" onclick="switchTab('earlyWarning', this)"><i class="fa-solid fa-paper-plane"></i> Early Warning Center</button>
+    <button class="tab-btn" onclick="switchTab('hardwareSpecs', this)"><i class="fa-solid fa-microchip"></i> Made In India Specs</button>
+    <button class="tab-btn" onclick="switchTab('dataSync', this)"><i class="fa-solid fa-database"></i> Logs & Cloud Sync</button>
+  </nav>
+
+  <main class="main-container">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-info">
+          <h4>Active Surface Nodes</h4>
+          <div class="stat-value" id="valActiveNodes">8 / 8</div>
+          <div class="stat-sub" id="valMeshHealth">Mesh Health: 99.4% (Optimal)</div>
+        </div>
+        <div class="stat-icon icon-blue"><i class="fa-solid fa-tower-cell"></i></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-info">
+          <h4>Max Surface Tilt</h4>
+          <div class="stat-value" id="valMaxTilt">0.28°</div>
+          <div class="stat-sub" id="valTiltStatus">Normal (< 1.0° Threshold)</div>
+        </div>
+        <div class="stat-icon icon-green" id="iconTiltBg"><i class="fa-solid fa-compass-drafting"></i></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-info">
+          <h4>Max Strain / Displacement</h4>
+          <div class="stat-value" id="valDisplacement">0.60 mm</div>
+          <div class="stat-sub" id="valDisplacementStatus">Stable ground baseline</div>
+        </div>
+        <div class="stat-icon icon-orange" id="iconDispBg"><i class="fa-solid fa-arrows-left-right-to-line"></i></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-info">
+          <h4>AI Subsidence Risk Score</h4>
+          <div class="stat-value" id="valRiskScore">12%</div>
+          <div class="stat-sub" id="valRiskCategory">LOW RISK - NORMAL</div>
+        </div>
+        <div class="stat-icon icon-purple" id="iconRiskBg"><i class="fa-solid fa-chart-line"></i></div>
+      </div>
+    </div>
+
+    <!-- TAB 1: GIS SURFACE MESH MAP -->
+    <div id="gisMap" class="tab-content active">
+      <div class="gis-section">
+        <div class="map-card">
+          <div class="map-header">
+            <div class="map-title"><i class="fa-solid fa-crosshairs"></i> KORBA COALFIELD LEASE BOUNDARY (NORTH 22°41'12" N, 82°35'44" E)</div>
+            <div class="map-controls">
+              <button class="map-btn active" id="btnToggleMesh" onclick="toggleMeshLines()">Mesh Links: ON</button>
+              <button class="map-btn" id="btnToggleHeatmap" onclick="toggleHeatmap()">Heatmap: OFF</button>
+            </div>
+          </div>
+          <div class="map-viewport" id="mapContainer">
+            <canvas id="meshCanvas"></canvas>
+            <div class="map-hud-topleft">
+              <div><strong style="color: #38bdf8;">PANEL:</strong> KORBA SEAM 4 FACE 1</div>
+              <div><strong style="color: #38bdf8;">ACTIVE MESH:</strong> LoRa 868 MHz (Multi-Hop)</div>
+              <div><strong style="color: #38bdf8;">LATENCY:</strong> 120ms | PDR: 99.8%</div>
+            </div>
+            <div class="map-hud-legend">
+              <div class="legend-item"><span class="legend-color" style="background: #10b981;"></span> Normal Node</div>
+              <div class="legend-item"><span class="legend-color" style="background: #f59e0b;"></span> Watch Node</div>
+              <div class="legend-item"><span class="legend-color" style="background: #f97316;"></span> High Risk</div>
+              <div class="legend-item"><span class="legend-color" style="background: #ef4444;"></span> Critical Warning</div>
+              <div class="legend-item"><span class="line-legend"></span> Animated LoRa Hop</div>
+            </div>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="panel-card">
+            <div class="panel-header">
+              <h3><i class="fa-solid fa-satellite-dish"></i> Surface Sensor Mesh Nodes</h3>
+              <button class="btn-action btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="syncWithPythonBackend()"><i class="fa-solid fa-rotate"></i> Ping Backend</button>
+            </div>
+            <div class="node-list-mini" id="nodeListMini"></div>
+          </div>
+          <div class="panel-card">
+            <div class="panel-header"><h3><i class="fa-solid fa-sliders"></i> Dynamic Simulation Controls</h3></div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Tweak sliders or trigger failover to demo self-healing LoRa mesh.</div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div>
+                <label style="font-size: 0.78rem; font-weight: 700;">Depillaring Face Tilt (Zone A): <span id="lblTiltSlider">0.3°</span></label>
+                <input type="range" min="0" max="15" step="0.1" value="0.3" id="sliderTilt" style="width: 100%; cursor: pointer;" oninput="onTiltSliderChange(this.value)">
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <button class="btn-action btn-outline" style="flex:1; font-size:0.75rem;" onclick="simulateNodeFailure()"><i class="fa-solid fa-power-off"></i> Simulate Node Failover</button>
+                <button class="btn-action" style="flex:1; font-size:0.75rem;" onclick="triggerSirenAlert()"><i class="fa-solid fa-volume-high"></i> Test Sound Siren</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: AI ML SPATIOTEMPORAL ENGINE -->
+    <div id="aiEngine" class="tab-content">
+      <div class="analytics-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3><i class="fa-solid fa-chart-line"></i> Real-Time Tilt & Displacement Time-Series</h3>
+            <span class="status-badge badge-normal" id="aiStatusBadge">LSTM Stream: Normal</span>
+          </div>
+          <div class="chart-container"><canvas id="chartTimeSeries"></canvas></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3><i class="fa-solid fa-spider"></i> Multi-Sensor Fusion Signature</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Tilt, Displacement, Vibration & Crack</span>
+          </div>
+          <div class="chart-container"><canvas id="chartRadarFusion"></canvas></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-header"><h3><i class="fa-solid fa-table-cells"></i> Spatiotemporal Correlation Matrix</h3></div>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Evaluates neighboring nodes across space and time to distinguish real subsidence from isolated noise.</p>
+          <div class="spatiotemporal-grid" id="spatiotemporalGrid"></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-header"><h3><i class="fa-solid fa-calculator"></i> AI Subsidence Velocity & Fukuzono TTF</h3></div>
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 6px;">
+              <span style="font-size: 0.85rem; font-weight: 600;">Predicted Subsidence Velocity:</span>
+              <strong id="aiVelVal" style="color: #2563eb; font-family: monospace;">0.04 mm/hour</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 6px;">
+              <span style="font-size: 0.85rem; font-weight: 600;">Time To Critical Failure (TTF):</span>
+              <strong id="aiTtfVal" style="color: #059669; font-family: monospace;">> 72 Hours (STABLE)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 6px;">
+              <span style="font-size: 0.85rem; font-weight: 600;">DGMS Guideline Status:</span>
+              <strong id="aiDgmsVal" style="color: #047857;">COMPLIANT (SAFE)</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: LORA MESH TOPOLOGY -->
+    <div id="meshTopology" class="tab-content">
+      <div class="analytics-grid">
+        <div class="panel-card" style="grid-column: span 2;">
+          <div class="panel-header">
+            <h3><i class="fa-solid fa-diagram-project"></i> Wireless Surface LoRa Mesh Topology</h3>
+            <span class="status-badge badge-normal" id="meshTopBadge">Optimal Hops</span>
+          </div>
+          <div style="padding: 16px; background: #0f172a; border-radius: 8px; color: white;">
+            <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px;">If any node fails, adjacent nodes automatically re-route data packets to central gateway <strong>GW-01</strong>.</p>
+            <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 12px;" id="meshDiagramContainer"></div>
+          </div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-header"><h3><i class="fa-solid fa-signal"></i> Signal Quality (RSSI dBm)</h3></div>
+          <div class="chart-container"><canvas id="chartRssi"></canvas></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-header"><h3><i class="fa-solid fa-battery-three-quarters"></i> Node Battery Health</h3></div>
+          <div class="chart-container"><canvas id="chartBattery"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: EARLY WARNING CENTER -->
+    <div id="earlyWarning" class="tab-content">
+      <div class="analytics-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3><i class="fa-solid fa-bell"></i> Multi-Channel Automated Early Warning Alerts</h3>
+            <button class="btn-action" onclick="dispatchTestAlert()"><i class="fa-solid fa-paper-plane"></i> Test Broadcast</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: #f8fafc;">
+              <h4 style="font-size: 0.85rem; color: #0f172a; margin-bottom: 6px;"><i class="fa-solid fa-comment-sms" style="color: #2563eb;"></i> SMS Gateway Alert (DGMS Protocol)</h4>
+              <div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.8rem;" id="smsPreviewBox">[MINESHIELD-ALERT] Level: NORMAL. Surface panel Korba Seam 4 stable.</div>
+            </div>
+            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: #f8fafc;">
+              <h4 style="font-size: 0.85rem; color: #0f172a; margin-bottom: 6px;"><i class="fa-solid fa-envelope" style="color: #059669;"></i> Automated Email Summary</h4>
+              <div style="background: #ffffff; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; font-size: 0.8rem;" id="emailPreviewBox"><strong>To:</strong> safetymanager@coalindia.in<br><strong>Status:</strong> All nodes reporting stable baseline.</div>
+            </div>
+            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; background: #f8fafc;">
+              <h4 style="font-size: 0.85rem; color: #0f172a; margin-bottom: 6px;"><i class="fa-solid fa-mobile-screen-button" style="color: #9333ea;"></i> Mobile App Push Notification</h4>
+              <div style="background: #0f172a; color: white; padding: 10px; border-radius: 6px; font-size: 0.8rem;" id="pushPreviewBox"><strong style="color: #38bdf8;">MineShield Safe</strong><br>Ground deformation within safe limits.</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-header"><h3><i class="fa-solid fa-list-check"></i> Standard Evacuation & Emergency Protocols</h3></div>
+          <div class="alert-feed">
+            <div class="alert-item normal"><div><div class="alert-title">Level 1: Routine Continuous Sensing</div><div class="alert-desc">Baseline monitoring active.</div></div><div class="alert-time">ACTIVE</div></div>
+            <div class="alert-item watch"><div><div class="alert-title">Level 2: Accelerated LoRa Sampling Rate</div><div class="alert-desc">Sample every 1 second. Inform geotechnical engineer.</div></div><div class="alert-time">STANDBY</div></div>
+            <div class="alert-item high"><div><div class="alert-title">Level 3: Underground Shearer Machine Halt</div><div class="alert-desc">Halt continuous miner. Evacuate active face personnel.</div></div><div class="alert-time">STANDBY</div></div>
+            <div class="alert-item critical"><div><div class="alert-title">Level 4: Full Surface & Shaft Evacuation</div><div class="alert-desc">Trigger sirens & emergency SMS broadcast.</div></div><div class="alert-time">STANDBY</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: MADE IN INDIA SPECS -->
+    <div id="hardwareSpecs" class="tab-content">
+      <div class="analytics-grid">
+        <div class="panel-card" style="grid-column: span 2;">
+          <div class="panel-header"><h3><i class="fa-solid fa-microchip"></i> Made In India Smart Surface Node Architecture</h3></div>
+          <table class="tech-table">
+            <thead><tr><th>Component</th><th>Selected Hardware</th><th>Functionality</th><th>Unit Cost</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Microcontroller</strong></td><td>ESP32-S3 Dual-Core WROOM</td><td>Edge computing & LoRa mesh stack</td><td>₹450</td></tr>
+              <tr><td><strong>Tilt / IMU</strong></td><td>MPU6050 6-DOF Gyro/Accel</td><td>Micro ground tilt detection (0.01° res)</td><td>₹180</td></tr>
+              <tr><td><strong>Displacement Strain</strong></td><td>Linear Potentiometric Strain Gauge</td><td>Ground relative displacement sensing</td><td>₹350</td></tr>
+              <tr><td><strong>Vibration / Seismic</strong></td><td>SW-420 High Sensitivity Sensor</td><td>Pre-subsidence tremor detection</td><td>₹90</td></tr>
+              <tr><td><strong>Crack Sensor</strong></td><td>Conductive Trace Expansion Meter</td><td>Surface tension crack monitoring</td><td>₹120</td></tr>
+              <tr><td><strong>Wireless RF</strong></td><td>SX1262 868MHz LoRa Transceiver</td><td>Long-range multi-hop mesh (up to 3 km)</td><td>₹650</td></tr>
+              <tr><td><strong>Power System</strong></td><td>3.7V 3200mAh LiFePO4 + 5V 2W Solar</td><td>Continuous 24/7 off-grid field power</td><td>₹610</td></tr>
+              <tr style="background: #eff6ff; font-weight: 700;"><td colspan="3"><strong>Total Hardware Cost Per Smart Node</strong></td><td style="color: #2563eb;"><strong>₹2,450 (~$30 USD)</strong></td></tr>
+            </tbody>
+          </table>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 10px;">* Commercial Leica total stations cost > ₹3.5 Lakhs. MineShield deploys 100+ dense nodes for less than a single legacy station!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: LOGS & CLOUD SYNC -->
+    <div id="dataSync" class="tab-content">
+      <div class="analytics-grid">
+        <div class="panel-card" style="grid-column: span 2;">
+          <div class="panel-header">
+            <h3><i class="fa-solid fa-database"></i> Live Telemetry Logs & Cloud Synchronization</h3>
+            <div>
+              <a href="/api/export/csv" class="btn-action" style="text-decoration:none;"><i class="fa-solid fa-file-csv"></i> Download CSV Telemetry</a>
+            </div>
+          </div>
+          <div style="max-height: 320px; overflow-y: auto; background: #0f172a; color: #38bdf8; border-radius: 6px; padding: 14px; font-family: monospace; font-size: 0.78rem;" id="logTerminal"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="nodeModal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeNodeModal()">×</button>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+        <div class="logo-icon" style="width: 36px; height: 36px; font-size: 1.1rem;"><i class="fa-solid fa-tower-cell"></i></div>
+        <div>
+          <h3 id="modalNodeId" style="font-size: 1.1rem; color: #0f172a;">Node SN-01-A</h3>
+          <p id="modalNodeZone" style="font-size: 0.8rem; color: var(--text-muted);">Zone A - Depillaring Face</p>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.85rem;">
+        <div style="background: #f8fafc; padding: 10px; border-radius: 6px;"><div style="color: var(--text-muted); font-size: 0.75rem;">Tilt Angle</div><strong id="modalTilt" style="color: #2563eb;">0.24°</strong></div>
+        <div style="background: #f8fafc; padding: 10px; border-radius: 6px;"><div style="color: var(--text-muted); font-size: 0.75rem;">Displacement</div><strong id="modalDisplacement" style="color: #059669;">0.65 mm</strong></div>
+        <div style="background: #f8fafc; padding: 10px; border-radius: 6px;"><div style="color: var(--text-muted); font-size: 0.75rem;">Vibration</div><strong id="modalVib" style="color: #d97706;">0.02 g</strong></div>
+        <div style="background: #f8fafc; padding: 10px; border-radius: 6px;"><div style="color: var(--text-muted); font-size: 0.75rem;">Crack Gauge</div><strong id="modalCrack" style="color: #7c3aed;">0.00 mm</strong></div>
+        <div style="background: #f8fafc; padding: 10px; border-radius: 6px;"><div style="color: var(--text-muted); font-size: 0.75rem;">Battery</div><strong id="modalBattery">98% (Solar Charging)</strong></div>
+        <div style="background: #f8fafc; padding: 10px; border-radius: 6px;"><div style="color: var(--text-muted); font-size: 0.75rem;">LoRa Signal</div><strong id="modalRssi">-74 dBm</strong></div>
+      </div>
+      <div style="margin-top: 16px; text-align: right;"><button class="btn-action" onclick="closeNodeModal()">Close</button></div>
+    </div>
+  </div>
+
+  <footer><strong>MineShield</strong> - Made in India Smart Mining Solution | SIH 2026 Problem Statement SIH26025</footer>
+
+  <script>
+    let currentRiskLevel = 'NORMAL';
+    let meshLinesEnabled = true;
+    let heatmapEnabled = false;
+    let activeNodeFailure = false;
+    let failedNodeId = null;
+
+    let nodes = [
+      { id: 'SN-01-A', name: 'Node 01 (Depillaring)', zone: 'Zone A', xRel: 0.28, yRel: 0.32, tilt: 0.24, disp: 0.5, vib: 0.02, crack: 0.0, battery: 98, rssi: -72, status: 'NORMAL' },
+      { id: 'SN-02-A', name: 'Node 02 (Face 1)', zone: 'Zone A', xRel: 0.38, yRel: 0.42, tilt: 0.28, disp: 0.6, vib: 0.03, crack: 0.0, battery: 96, rssi: -75, status: 'NORMAL' },
+      { id: 'GW-01',    name: 'Gateway GW-01', zone: 'Zone B', xRel: 0.50, yRel: 0.55, tilt: 0.00, disp: 0.0, vib: 0.00, crack: 0.0, battery: 100, rssi: -50, status: 'GATEWAY', isGateway: true },
+      { id: 'SN-03-B', name: 'Node 03 (Central)', zone: 'Zone B', xRel: 0.50, yRel: 0.30, tilt: 0.15, disp: 0.3, vib: 0.01, crack: 0.0, battery: 94, rssi: -68, status: 'NORMAL' },
+      { id: 'SN-04-B', name: 'Node 04 (North-East)', zone: 'Zone B', xRel: 0.62, yRel: 0.40, tilt: 0.18, disp: 0.4, vib: 0.01, crack: 0.0, battery: 97, rssi: -71, status: 'NORMAL' },
+      { id: 'SN-05-C', name: 'Node 05 (South-West)', zone: 'Zone C', xRel: 0.33, yRel: 0.78, tilt: 0.12, disp: 0.2, vib: 0.01, crack: 0.0, battery: 92, rssi: -82, status: 'NORMAL' },
+      { id: 'SN-06-C', name: 'Node 06 (West Panel)', zone: 'Zone C', xRel: 0.44, yRel: 0.85, tilt: 0.14, disp: 0.3, vib: 0.01, crack: 0.0, battery: 95, rssi: -78, status: 'NORMAL' },
+      { id: 'SN-07-D', name: 'Node 07 (East Panel)', zone: 'Zone D', xRel: 0.58, yRel: 0.84, tilt: 0.10, disp: 0.2, vib: 0.01, crack: 0.0, battery: 99, rssi: -76, status: 'NORMAL' },
+      { id: 'SN-08-D', name: 'Node 08 (South-East)', zone: 'Zone D', xRel: 0.68, yRel: 0.68, tilt: 0.11, disp: 0.2, vib: 0.01, crack: 0.0, battery: 91, rssi: -80, status: 'NORMAL' }
+    ];
+
+    const meshLinks = [
+      ['SN-01-A', 'SN-02-A'], ['SN-02-A', 'GW-01'], ['SN-03-B', 'GW-01'], ['SN-04-B', 'GW-01'],
+      ['SN-05-C', 'SN-06-C'], ['SN-06-C', 'GW-01'], ['SN-07-D', 'SN-08-D'], ['SN-08-D', 'GW-01'],
+      ['SN-02-A', 'SN-04-B'], ['SN-06-C', 'SN-07-D']
+    ];
+
+    let signalPackets = meshLinks.map((_, i) => ({ linkIndex: i, progress: Math.random(), speed: 0.006 + Math.random() * 0.005 }));
+    let chartTimeSeries, chartRadarFusion, chartRssi, chartBattery;
+    let canvas, ctx, angleRadar = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMapCanvas();
+      renderNodeListMini();
+      initCharts();
+      renderSpatiotemporalGrid();
+      renderMeshDiagram();
+      syncWithPythonBackend();
+      setInterval(syncWithPythonBackend, 3500);
+    });
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+      if (tabId === 'gisMap') setTimeout(resizeCanvas, 100);
+    }
+
+    function setRiskLevel(level) {
+      currentRiskLevel = level;
+      document.querySelectorAll('.btn-level').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('btn' + level.charAt(0).toUpperCase() + level.slice(1).toLowerCase()).classList.add('active');
+      
+      fetch('/api/risk-level', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: level })
+      }).then(() => syncWithPythonBackend()).catch(() => {});
+
+      if (level === 'CRITICAL') triggerSirenAlert();
+      else stopSirenAlert();
+    }
+
+    function syncWithPythonBackend() {
+      fetch('/api/nodes').then(r => r.json()).then(data => {
+        nodes = data;
+        updateUIOverall();
+      }).catch(() => {});
+
+      fetch('/api/logs').then(r => r.json()).then(data => {
+        const term = document.getElementById('logTerminal');
+        if (term && data.logs) term.innerHTML = data.logs.join('<br>');
+      }).catch(() => {});
+    }
+
+    function onTiltSliderChange(val) {
+      document.getElementById('lblTiltSlider').innerText = val + '°';
+      const f = parseFloat(val);
+      if (f < 1.0) setRiskLevel('NORMAL');
+      else if (f < 4.0) setRiskLevel('WATCH');
+      else if (f < 10.0) setRiskLevel('HIGH');
+      else setRiskLevel('CRITICAL');
+    }
+
+    function updateUIOverall() {
+      let maxTilt = 0, maxDisp = 0;
+      nodes.forEach(n => {
+        if (!n.isGateway) {
+          if (parseFloat(n.tilt) > maxTilt) maxTilt = parseFloat(n.tilt);
+          if (parseFloat(n.disp) > maxDisp) maxDisp = parseFloat(n.disp);
+        }
+      });
+
+      document.getElementById('valMaxTilt').innerText = maxTilt.toFixed(2) + '°';
+      document.getElementById('valDisplacement').innerText = maxDisp.toFixed(2) + ' mm';
+      let riskScore = Math.min(100, Math.round((maxTilt / 15.0) * 100));
+      document.getElementById('valRiskScore').innerText = riskScore + '%';
+
+      const catEl = document.getElementById('valRiskCategory');
+      const catIcon = document.getElementById('iconRiskBg');
+      if (currentRiskLevel === 'NORMAL') {
+        catEl.innerText = 'LOW RISK - SAFE GROUND'; catEl.style.color = '#059669'; catIcon.className = 'stat-icon icon-green';
+      } else if (currentRiskLevel === 'WATCH') {
+        catEl.innerText = 'MODERATE RISK - WATCH ZONE A'; catEl.style.color = '#d97706'; catIcon.className = 'stat-icon icon-orange';
+      } else if (currentRiskLevel === 'HIGH') {
+        catEl.innerText = 'HIGH RISK - DEPRESSION SPREADING'; catEl.style.color = '#ea580c'; catIcon.className = 'stat-icon icon-orange';
+      } else {
+        catEl.innerText = 'CRITICAL RISK - SUBSIDENCE IMMINENT!'; catEl.style.color = '#dc2626'; catIcon.className = 'stat-icon icon-purple';
+      }
+
+      document.getElementById('aiVelVal').innerText = (maxTilt * 0.45).toFixed(2) + ' mm/hour';
+      const ttfEl = document.getElementById('aiTtfVal');
+      const dgmsEl = document.getElementById('aiDgmsVal');
+      if (currentRiskLevel === 'NORMAL') {
+        ttfEl.innerText = '> 72 Hours (STABLE BASELINE)'; ttfEl.style.color = '#059669';
+        dgmsEl.innerText = 'COMPLIANT (SAFE)'; dgmsEl.style.color = '#047857';
+      } else if (currentRiskLevel === 'WATCH') {
+        ttfEl.innerText = '~ 24-48 Hours (SLOW TILT)'; ttfEl.style.color = '#d97706';
+        dgmsEl.innerText = 'WARNING: DGMS LEVEL 2 TRIGGERED'; dgmsEl.style.color = '#b45309';
+      } else if (currentRiskLevel === 'HIGH') {
+        ttfEl.innerText = '~ 4-8 Hours (RAPID MOVEMENTS)'; ttfEl.style.color = '#ea580c';
+        dgmsEl.innerText = 'ACTION: STOP FACE MACHINERY'; dgmsEl.style.color = '#c2410c';
+      } else {
+        ttfEl.innerText = 'IMMINENT (< 30 MINUTES)'; ttfEl.style.color = '#dc2626';
+        dgmsEl.innerText = 'EMERGENCY EVACUATION MANDATED'; dgmsEl.style.color = '#b91c1c';
+      }
+
+      renderNodeListMini();
+      updateChartsData(maxTilt, maxDisp);
+      renderSpatiotemporalGrid();
+    }
+
+    function initMapCanvas() {
+      canvas = document.getElementById('meshCanvas');
+      ctx = canvas.getContext('2d');
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      canvas.addEventListener('click', handleCanvasClick);
+      requestAnimationFrame(drawMapFrame);
+    }
+
+    function resizeCanvas() {
+      const container = document.getElementById('mapContainer');
+      if (!container || !canvas) return;
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+
+    function drawMapFrame() {
+      if (!canvas || !ctx) return;
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, w, h);
+
+      // Grid
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+      for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+      // Radar Concentric Circles
+      const cx = w * 0.5, cy = h * 0.55;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+      [80, 160, 240, 320].forEach(r => { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke(); });
+
+      // Radar beam
+      angleRadar += 0.015;
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(angleRadar);
+      const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, 240);
+      grad.addColorStop(0, 'rgba(56, 189, 248, 0.25)'); grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 240, 0, Math.PI * 0.25); ctx.closePath(); ctx.fill();
+      ctx.restore();
+
+      // Zone Boxes
+      ctx.strokeStyle = (currentRiskLevel === 'CRITICAL' || currentRiskLevel === 'HIGH') ? 'rgba(239, 68, 68, 0.8)' : 'rgba(245, 158, 11, 0.6)';
+      ctx.strokeRect(w * 0.22, h * 0.18, w * 0.22, h * 0.35);
+      ctx.fillStyle = '#ef4444'; ctx.font = 'bold 10px monospace';
+      ctx.fillText('[Zone A] ACTIVE DEPILARING FACE', w * 0.23, h * 0.22);
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      ctx.strokeRect(w * 0.46, h * 0.18, w * 0.25, h * 0.42);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('[Zone B] CENTRAL STABILITY', w * 0.48, h * 0.22);
+
+      // Heatmap
+      if (heatmapEnabled || currentRiskLevel === 'HIGH' || currentRiskLevel === 'CRITICAL') {
+        const hx = w * 0.33, hy = h * 0.37;
+        const hr = (currentRiskLevel === 'CRITICAL') ? 140 : 80;
+        const hg = ctx.createRadialGradient(hx, hy, 5, hx, hy, hr);
+        hg.addColorStop(0, currentRiskLevel === 'CRITICAL' ? 'rgba(239,68,68,0.75)' : 'rgba(245,158,11,0.6)');
+        hg.addColorStop(1, 'rgba(239,68,68,0)');
+        ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI*2); ctx.fill();
+      }
+
+      // Mesh Links
+      if (meshLinesEnabled) {
+        meshLinks.forEach((link, idx) => {
+          const a = nodes.find(n => n.id === link[0]), b = nodes.find(n => n.id === link[1]);
+          if (!a || !b) return;
+          if (activeNodeFailure && (a.id === failedNodeId || b.id === failedNodeId)) return;
+
+          const ax = a.xRel * w, ay = a.yRel * h, bx = b.xRel * w, by = b.yRel * h;
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+          ctx.setLineDash([4, 4]); ctx.strokeStyle = currentRiskLevel === 'CRITICAL' ? 'rgba(239, 68, 68, 0.6)' : 'rgba(56, 189, 248, 0.45)';
+          ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+
+          const pkt = signalPackets[idx];
+          if (pkt) {
+            pkt.progress += pkt.speed; if (pkt.progress > 1) pkt.progress = 0;
+            const px = ax + (bx - ax) * pkt.progress, py = ay + (by - ay) * pkt.progress;
+            ctx.fillStyle = currentRiskLevel === 'CRITICAL' ? '#ef4444' : '#38bdf8';
+            ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI*2); ctx.fill();
+          }
+        });
+      }
+
+      // Nodes
+      nodes.forEach(n => {
+        const nx = n.xRel * w, ny = n.yRel * h;
+        if (activeNodeFailure && n.id === failedNodeId) {
+          ctx.fillStyle = '#64748b'; ctx.beginPath(); ctx.arc(nx, ny, 7, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ef4444'; ctx.font = 'bold 9px monospace'; ctx.fillText(n.id + ' [OFFLINE]', nx + 10, ny + 3);
+          return;
+        }
+
+        let nodeColor = n.isGateway ? '#2563eb' : (n.status === 'CRITICAL' ? '#ef4444' : (n.status === 'HIGH' ? '#f97316' : (n.status === 'WATCH' ? '#f59e0b' : '#10b981')));
+        ctx.fillStyle = nodeColor; ctx.beginPath(); ctx.arc(nx, ny, n.isGateway ? 10 : 7, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px monospace'; ctx.fillText(n.id, nx + 10, ny + 3);
+        if (!n.isGateway) { ctx.fillStyle = '#94a3b8'; ctx.font = '9px monospace'; ctx.fillText(`${n.tilt}° | ${n.disp}mm`, nx + 10, ny + 14); }
+      });
+
+      requestAnimationFrame(drawMapFrame);
+    }
+
+    function handleCanvasClick(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left, clickY = e.clientY - rect.top;
+      const w = canvas.width, h = canvas.height;
+      nodes.forEach(n => {
+        const dist = Math.sqrt((clickX - n.xRel * w) ** 2 + (clickY - n.yRel * h) ** 2);
+        if (dist <= 16) openNodeModal(n);
+      });
+    }
+
+    function renderNodeListMini() {
+      const el = document.getElementById('nodeListMini');
+      if (!el) return;
+      el.innerHTML = '';
+      nodes.forEach(n => {
+        const d = document.createElement('div');
+        d.className = 'node-item';
+        d.onclick = () => openNodeModal(n);
+        d.innerHTML = `<div><span class="node-tag">${n.id}</span><div class="node-zone">${n.zone}</div></div><div class="node-metrics"><div>Tilt: <strong>${n.tilt}°</strong></div><span class="status-badge badge-${n.status.toLowerCase()}">${n.status}</span></div>`;
+        el.appendChild(d);
+      });
+    }
+
+    function openNodeModal(n) {
+      document.getElementById('modalNodeId').innerText = n.id + (n.isGateway ? ' (GATEWAY)' : '');
+      document.getElementById('modalNodeZone').innerText = n.zone;
+      document.getElementById('modalTilt').innerText = `${n.tilt}°`;
+      document.getElementById('modalDisplacement').innerText = `${n.disp} mm`;
+      document.getElementById('modalVib').innerText = `${n.vib} g`;
+      document.getElementById('modalCrack').innerText = `${n.crack} mm`;
+      document.getElementById('modalBattery').innerText = `${n.battery}% (LiFePO4 Solar)`;
+      document.getElementById('modalRssi').innerText = `${n.rssi} dBm`;
+      document.getElementById('nodeModal').classList.add('active');
+    }
+    function closeNodeModal() { document.getElementById('nodeModal').classList.remove('active'); }
+
+    function initCharts() {
+      const ctxTime = document.getElementById('chartTimeSeries').getContext('2d');
+      chartTimeSeries = new Chart(ctxTime, {
+        type: 'line',
+        data: {
+          labels: ['00s', '10s', '20s', '30s', '40s', '50s', '60s'],
+          datasets: [
+            { label: 'Ground Tilt (°)', data: [0.2, 0.22, 0.25, 0.24, 0.28, 0.3, 0.32], borderColor: '#2563eb', tension: 0.3 },
+            { label: 'Displacement (mm)', data: [0.4, 0.45, 0.5, 0.52, 0.6, 0.7, 0.85], borderColor: '#059669', tension: 0.3 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      const ctxRadar = document.getElementById('chartRadarFusion').getContext('2d');
+      chartRadarFusion = new Chart(ctxRadar, {
+        type: 'radar',
+        data: {
+          labels: ['IMU Tilt', 'Displacement', 'Micro Vibration', 'Crack Meter', 'Temp Anomaly'],
+          datasets: [{ label: 'Sensor Signature', data: [15, 12, 10, 5, 8], backgroundColor: 'rgba(37, 99, 235, 0.25)', borderColor: '#2563eb' }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: 0, max: 100 } } }
+      });
+
+      const ctxRssi = document.getElementById('chartRssi').getContext('2d');
+      chartRssi = new Chart(ctxRssi, {
+        type: 'bar',
+        data: { labels: nodes.filter(n => !n.isGateway).map(n => n.id), datasets: [{ label: 'LoRa RSSI (dBm)', data: nodes.filter(n => !n.isGateway).map(n => n.rssi), backgroundColor: '#38bdf8' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      const ctxBat = document.getElementById('chartBattery').getContext('2d');
+      chartBattery = new Chart(ctxBat, {
+        type: 'bar',
+        data: { labels: nodes.filter(n => !n.isGateway).map(n => n.id), datasets: [{ label: 'Battery %', data: nodes.filter(n => !n.isGateway).map(n => n.battery), backgroundColor: '#10b981' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    function updateChartsData(maxTilt, maxDisp) {
+      if (!chartTimeSeries) return;
+      const now = new Date().toLocaleTimeString().slice(3, 8);
+      chartTimeSeries.data.labels.shift(); chartTimeSeries.data.labels.push(now);
+      chartTimeSeries.data.datasets[0].data.shift(); chartTimeSeries.data.datasets[0].data.push(maxTilt);
+      chartTimeSeries.data.datasets[1].data.shift(); chartTimeSeries.data.datasets[1].data.push(maxDisp);
+      chartTimeSeries.update();
+
+      let val = currentRiskLevel === 'CRITICAL' ? 95 : (currentRiskLevel === 'HIGH' ? 75 : (currentRiskLevel === 'WATCH' ? 40 : 15));
+      chartRadarFusion.data.datasets[0].data = [val, val * 0.9, val * 0.8, val * 0.7, val * 0.4];
+      chartRadarFusion.update();
+    }
+
+    function renderSpatiotemporalGrid() {
+      const g = document.getElementById('spatiotemporalGrid');
+      if (!g) return;
+      g.innerHTML = '';
+      nodes.filter(n => !n.isGateway).forEach(n => {
+        const d = document.createElement('div');
+        d.className = 'grid-cell';
+        d.style.background = n.status === 'CRITICAL' ? '#fee2e2' : (n.status === 'HIGH' ? '#ffedd5' : (n.status === 'WATCH' ? '#fef3c7' : '#f8fafc'));
+        d.innerHTML = `<div>${n.id}</div><div class="cell-val" style="color: ${n.status === 'NORMAL' ? '#059669' : '#dc2626'}">${n.tilt}°</div>`;
+        g.appendChild(d);
+      });
+    }
+
+    function renderMeshDiagram() {
+      const c = document.getElementById('meshDiagramContainer');
+      if (!c) return;
+      c.innerHTML = '';
+      nodes.filter(n => !n.isGateway).forEach(n => {
+        const d = document.createElement('div');
+        d.style.cssText = 'background:#1e293b; padding:10px 14px; border-radius:8px; text-align:center; border:1px solid #334155;';
+        d.innerHTML = `<div style="font-weight:bold; color:#38bdf8;">${n.id}</div><div style="font-size:0.75rem; color:#94a3b8;">${n.zone}</div><div style="font-size:0.72rem; color:#10b981; margin-top:4px;"><i class="fa-solid fa-arrow-right"></i> ${n.zone === 'Zone A' ? '2 Hops' : '1 Hop'} -> GW-01</div>`;
+        c.appendChild(d);
+      });
+    }
+
+    function toggleMeshLines() {
+      meshLinesEnabled = !meshLinesEnabled;
+      document.getElementById('btnToggleMesh').innerText = `Mesh Links: ${meshLinesEnabled ? 'ON' : 'OFF'}`;
+      document.getElementById('btnToggleMesh').classList.toggle('active', meshLinesEnabled);
+    }
+
+    function toggleHeatmap() {
+      heatmapEnabled = !heatmapEnabled;
+      document.getElementById('btnToggleHeatmap').innerText = `Heatmap: ${heatmapEnabled ? 'ON' : 'OFF'}`;
+      document.getElementById('btnToggleHeatmap').classList.toggle('active', heatmapEnabled);
+    }
+
+    function simulateNodeFailure() {
+      fetch('/api/simulate/failover', { method: 'POST' }).then(r => r.json()).then(res => {
+        activeNodeFailure = res.active_node_failure;
+        failedNodeId = res.failed_node_id;
+        document.getElementById('valMeshHealth').innerText = `Mesh Health: ${res.mesh_health}`;
+        alert(activeNodeFailure ? 'Simulated Failure: Node SN-02-A offline!\\nMesh auto-rerouted via Node SN-04-B.' : 'Node SN-02-A reconnected!');
+        syncWithPythonBackend();
+      });
+    }
+
+    let sirenCtx = null, sirenOsc = null, sirenTimer = null;
+    function triggerSirenAlert() {
+      stopSirenAlert();
+      const b = document.getElementById('alarmBanner'); if (b) b.classList.add('active');
+      try {
+        sirenCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (sirenCtx.state === 'suspended') sirenCtx.resume();
+        sirenOsc = sirenCtx.createOscillator();
+        const gain = sirenCtx.createGain();
+        sirenOsc.type = 'sawtooth';
+        sirenOsc.frequency.setValueAtTime(650, sirenCtx.currentTime);
+        let hi = false;
+        sirenTimer = setInterval(() => {
+          if (!sirenOsc || !sirenCtx) return;
+          sirenOsc.frequency.linearRampToValueAtTime(hi ? 650 : 950, sirenCtx.currentTime + 0.35);
+          hi = !hi;
+        }, 380);
+        gain.gain.setValueAtTime(0.25, sirenCtx.currentTime);
+        sirenOsc.connect(gain); gain.connect(sirenCtx.destination);
+        sirenOsc.start();
+      } catch(e) {}
+    }
+    function stopSirenAlert() {
+      if (sirenTimer) { clearInterval(sirenTimer); sirenTimer = null; }
+      if (sirenOsc) { try { sirenOsc.stop(); sirenOsc.disconnect(); } catch(e){} sirenOsc = null; }
+      if (sirenCtx) { try { sirenCtx.close(); } catch(e){} sirenCtx = null; }
+      const b = document.getElementById('alarmBanner'); if (b) b.classList.remove('active');
+    }
+    document.addEventListener('click', () => { if (sirenCtx && sirenCtx.state === 'suspended') sirenCtx.resume(); });
+
+    function dispatchTestAlert() {
+      fetch('/api/alerts/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channels: ['sms', 'email', 'push'] })
+      }).then(() => {
+        alert('[MINESHIELD EARLY WARNING DISPATCH]\\n\\nMulti-channel alerts sent via Python Gateway!\\nSMS: DGMS Safety Inspector (+91 9876543210)\\nEmail: safetymanager@coalindia.in\\nApp Push: MineShield Android Fleet');
+        syncWithPythonBackend();
+      });
+    }
+  </script>
+</body>
+</html>
+"""
+
+# ------------------------------------------------------------------------------
+# 4. MULTI-THREADED ZERO-DEPENDENCY HTTP REQUEST HANDLER
+# ------------------------------------------------------------------------------
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+class MineShieldHTTPHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def send_cors_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_cors_headers()
+        self.end_headers()
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path in ["/", "/index.html"]:
+            encoded = HTML_PAGE.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(encoded)
+            return
+
+        elif path == "/api/status":
+            sensor_nodes = [n for n in state.nodes.values() if not n.get("isGateway")]
+            res = {
+                "status": "ONLINE",
+                "system": "SMARTSURFACE-MESH",
+                "problem_statement": "SIH26025",
+                "gateway_id": "GW-01",
+                "lease_location": "Korba Coalfield Seam 4 (22°41'12\" N, 82°35'44\" E)",
+                "risk_level": state.risk_level,
+                "max_tilt_deg": max((float(n.get("tilt", 0.0)) for n in sensor_nodes), default=0.0),
+                "max_displacement_mm": max((float(n.get("disp", 0.0)) for n in sensor_nodes), default=0.0),
+                "active_nodes_count": "8 / 8",
+                "mesh_health": "87.5% (Self-Healed)" if state.active_node_failure else "99.4% (Optimal)"
+            }
+            self.send_json(res)
+            return
+
+        elif path == "/api/nodes":
+            self.send_json(list(state.nodes.values()))
+            return
+
+        elif path == "/api/ai/predict":
+            pred = compute_ai_prediction()
+            self.send_json(pred)
+            return
+
+        elif path == "/api/logs":
+            self.send_json({"logs": state.event_logs})
+            return
+
+        elif path == "/api/export/csv":
+            csv_data = state.get_csv().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv")
+            self.send_header("Content-Disposition", "attachment; filename=mineshield_telemetry.csv")
+            self.send_header("Content-Length", str(len(csv_data)))
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(csv_data)
+            return
+
+        else:
+            self.send_error(404, "Endpoint not found")
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+        try: payload = json.loads(body)
+        except Exception: payload = {}
+
+        if path == "/api/risk-level":
+            level = payload.get("level", "NORMAL")
+            state.set_risk(level)
+            self.send_json({"status": "ok", "new_level": state.risk_level})
+            return
+
+        elif path == "/api/telemetry":
+            node_id = payload.get("node_id")
+            if not node_id:
+                self.send_error(400, "Missing node_id")
+                return
+            updated = state.update_telemetry(node_id, payload)
+            self.send_json({"status": "ok", "node": updated})
+            return
+
+        elif path == "/api/simulate/failover":
+            res = state.toggle_failover()
+            self.send_json(res)
+            return
+
+        elif path == "/api/alerts/broadcast":
+            state.log(f"[BROADCAST DISPATCH] Multi-channel DGMS SMS, Email, and Push alerts transmitted for level {state.risk_level}.")
+            self.send_json({"status": "DISPATCHED", "risk_level": state.risk_level})
+            return
+
+        else:
+            self.send_error(404, "Endpoint not found")
+
+    def send_json(self, data):
+        encoded = json.dumps(data).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(encoded)
+
+# ------------------------------------------------------------------------------
+# 5. BACKGROUND SENSOR JITTER SIMULATION THREAD
+# ------------------------------------------------------------------------------
+def background_sensor_simulation():
+    while True:
+        time.sleep(3.5)
+        state.jitter()
+
+# ------------------------------------------------------------------------------
+# 6. MAIN EXECUTION ENTRY POINT
+# ------------------------------------------------------------------------------
+def run_server(port=8000):
+    server_address = ("0.0.0.0", port)
+    httpd = ThreadedHTTPServer(server_address, MineShieldHTTPHandler)
+
+    sim_thread = threading.Thread(target=background_sensor_simulation, daemon=True)
+    sim_thread.start()
+
+    print("\n" + "=" * 70)
+    print("  [*] MINESHIELD SMARTSURFACE-MESH: ALL-IN-ONE PYTHON SYSTEM")
+    print("  SIH 2026 Problem Statement: SIH26025 | Team MineShield")
+    print("=" * 70)
+    print(f"  [DASHBOARD UI]    http://localhost:{port}")
+    print(f"  [AI PREDICT API]  http://localhost:{port}/api/ai/predict")
+    print(f"  [STATUS API]      http://localhost:{port}/api/status")
+    print(f"  [NODES API]       http://localhost:{port}/api/nodes")
+    print(f"  [CSV EXPORT]      http://localhost:{port}/api/export/csv")
+    print("=" * 70)
+    print("  Server is active. Press Ctrl+C in terminal to stop.")
+    print("=" * 70 + "\n")
+
+    try:
+        webbrowser.open(f"http://localhost:{port}")
+    except Exception:
+        pass
+
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[!] Server shutting down.")
+        httpd.server_close()
+
+if __name__ == "__main__":
+    port_to_run = 8000
+    if len(sys.argv) > 1:
+        try: port_to_run = int(sys.argv[1])
+        except ValueError: pass
+    run_server(port_to_run)
